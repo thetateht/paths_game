@@ -1,0 +1,866 @@
+/* Heading font, stored in fonts/ (SIL Open Font License, see fonts/OFL.txt).
+   Variable font: one file covers weights 400-700. */
+@font-face {
+  font-family: "Lora";
+  src: url("../fonts/Lora-VariableFont_wght.ttf") format("truetype");
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+/* Colors and fonts shared with the Flags & Capitals game */
+:root {
+  --color-active: #1a334d;
+  --color-correct: #a3e0b3;
+  --color-wrong: #eea5a0;
+
+  --color-page: #e6eff6; /* page around the game card (gradient start, see body) */
+  --color-bg: #ffffff; /* game card */
+  --color-card-border: #b7c9da;
+  --color-panel: #eef4fa;
+  --color-accent: #6090b0;
+  --color-accent-dark: #2c5580;
+  --color-accent-light: #dce8f2;
+  --color-text: #1f2937;
+
+  --font-heading: "Lora", Georgia, serif;
+  --radius: 4px;
+
+  /* Map */
+  --map-sea: #a8cde8;
+  --map-blank: #e4e6e8; /* blank map: neutral background instead of sea and land */
+  --map-land: #fbfaf6;
+  --map-border: #9aa6b2;
+  --map-start: #e2674a;
+  --map-target: #f39a4b; /* orange, close to the start color, far from olive */
+  --map-off: #e3e1db;
+  --map-on-way: #5fb27a; /* guessed, on a shortest way */
+  --map-off-way: #d4e6a5; /* guessed, off the shortest ways (olive) */
+}
+
+body {
+  margin: 0;
+  /* Sky-like diagonal gradient behind the game card */
+  background: var(--color-page) linear-gradient(160deg, var(--color-page), #adc5db) fixed;
+  color: var(--color-text);
+  font-family: Arial, sans-serif;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  align-items: safe center;
+  min-height: var(--viewport-height, 100vh);
+  zoom: var(--scale, 1); /* set from js/scaling.js */
+}
+
+/* Free space above and below the card split 1 : 2 */
+#app::before,
+#app::after {
+  content: "";
+}
+
+#app::before {
+  flex: 1;
+}
+
+#app::after {
+  flex: 2;
+}
+
+/* Elements with the hidden attribute stay hidden, whatever their display */
+[hidden] {
+  display: none !important;
+}
+
+/* Start screen and game: white card */
+.card {
+  width: min(1265px, calc(var(--viewport-width, 100vw) - 32px));
+  box-sizing: border-box;
+  margin-block: 10px 20px;
+  padding: 15px 24px 24px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-card-border);
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.title {
+  margin: 10px 0 15px;
+  font-family: var(--font-heading);
+  font-size: 28pt;
+  color: var(--color-active);
+}
+
+/* ---------- Game screen: map on the left, panel on the right ---------- */
+/* Wider and lower than the start screen (like in the Flags & Capitals game):
+   grows with the window up to 1690px, keeps a 24px page margin */
+.game {
+  width: min(1690px, calc(var(--viewport-width, 100vw) - 48px));
+  /* map and panel height: fixed, less on low windows */
+  --game-height: clamp(450px, calc(var(--viewport-height, 100vh) - 80px), 720px);
+  flex-direction: row;
+  align-items: stretch;
+  gap: 20px;
+}
+
+/* Title centered above the map */
+.map-column {
+  flex: 1;
+  min-width: 0; /* may shrink below the map's own width */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.map-column .title {
+  margin: 0 0 10px;
+}
+
+#map-area {
+  align-self: stretch;
+  position: relative; /* anchor for the reset view button */
+}
+
+/* Zoom: the map can be dragged; the button brings back the fitted view */
+.map {
+  cursor: grab;
+  touch-action: none; /* dragging, not scrolling, on touch screens */
+}
+
+.map.dragging {
+  cursor: grabbing;
+}
+
+#map-area .map-reset {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  min-width: 0;
+}
+
+/* Fills the rest of the card width and the window height;
+   the view keeps its proportions and is centered */
+.map {
+  display: block;
+  width: 100%;
+  height: var(--game-height);
+  background: var(--map-sea);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius);
+}
+
+.country {
+  fill: var(--map-land);
+  stroke: var(--map-border);
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke; /* same line width at any zoom */
+}
+
+/* Not in the game (islands, isolated countries) */
+.country.off {
+  fill: var(--map-off);
+}
+
+.country:hover {
+  stroke: var(--color-active);
+  stroke-width: 2;
+}
+
+/* After a round: the shortest way blinks twice */
+.country.flash {
+  animation: way-flash 0.45s ease-in-out 4 alternate;
+}
+
+@keyframes way-flash {
+  to {
+    opacity: 0.25;
+  }
+}
+
+/* Blank map: countries not colored yet are not seen at all (the background color, also
+   their outline, which hides thin gaps between them); no hover hints */
+.map.blank {
+  background: var(--map-blank);
+}
+
+.map.blank .country:not(.shown),
+.map.blank .country:not(.shown):hover {
+  fill: var(--map-blank);
+  stroke: var(--map-blank);
+  stroke-width: 0.8;
+}
+
+.country.start {
+  fill: var(--map-start);
+}
+
+.country.target {
+  fill: var(--map-target);
+}
+
+.country.on-way {
+  fill: var(--map-on-way);
+  stroke: #2b5a3c; /* darker borders, so neighbors on the way do not merge */
+}
+
+/* After the round: countries of a shortest way not found – dark green stripes
+   (pattern in js/mapView.js) */
+.country.missed {
+  fill: url(#missed-stripes);
+  stroke: #2b5a3c;
+}
+
+/* After the round: guessed countries of another shortest way, not needed –
+   dark green stripes on olive */
+.country.unneeded {
+  fill: url(#unneeded-stripes);
+  stroke: #2b5a3c;
+}
+
+.missed-background {
+  fill: var(--map-land);
+}
+
+.unneeded-background {
+  fill: var(--map-off-way);
+}
+
+.stripes-line {
+  fill: var(--map-on-way);
+}
+
+/* Guessed, off the shortest ways (also grayed countries not in the game) */
+.country.off-way {
+  fill: var(--map-off-way);
+}
+
+/* ---------- Task, input, messages ---------- */
+/* As high as the map column (its content does not make it higher: the log scrolls) */
+.side-panel {
+  width: 36%;
+  min-width: 320px;
+  contain: size;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.side-panel p {
+  margin: 0;
+}
+
+/* Start → target as one centered line; space below it before the rest */
+.side-panel .task {
+  margin: 40px 0 16px;
+  font-size: 18pt;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* Note on the left, Give up / Next on the right (under Check) */
+.round-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Buttons mode: countries to click (columns set in main.js); after a click the button
+   gets the country's map color */
+/* Two columns as narrow as three across the panel would be */
+.country-buttons {
+  width: calc((100% - 20px) * 2 / 3 + 10px);
+  display: grid;
+  gap: 10px;
+}
+
+/* Two classes: wins over the general .btn rule further down */
+.country-buttons .country-button {
+  padding: 12px 4px;
+  font-size: 13pt;
+  line-height: 1.2;
+}
+
+.country-button.on-way,
+.country-button.off-way {
+  opacity: 1;
+  color: var(--color-text);
+  cursor: default;
+}
+
+.country-button.on-way {
+  background: var(--map-on-way);
+}
+
+.country-button.off-way {
+  background: var(--map-off-way);
+}
+
+/* Check and Give up: the same size (two classes: win over .btn further down) */
+.guess-form .btn-check,
+.round-row .btn {
+  flex-shrink: 0;
+  min-width: 130px;
+  font-size: 12pt;
+}
+
+.round-row .btn {
+  margin-top: 10px;
+}
+
+/* Give up / Next / Play on, and below them the route length after a win */
+.round-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* Next: the main action after a round (Check is rarely used, Enter works) */
+.round-row .btn-next {
+  min-width: 200px;
+  padding: 14px 28px;
+  font-size: 15pt;
+}
+
+.side-panel #end-game {
+  align-self: flex-end;
+}
+
+/* Timer on the left (timed mode), status card on the right */
+.panel-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.panel-top > .status-card:last-child {
+  margin-left: auto;
+}
+
+/* End of the whole game: big note left of the status card (blue win, red loss) */
+.game-end {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 2px solid;
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.game-end-text {
+  font-family: var(--font-heading);
+  font-size: 20pt;
+  font-weight: bold;
+  line-height: 1.3;
+  white-space: pre-line; /* "\n" in the text = new line */
+}
+
+/* After a win (between rounds): choice of the route length for playing on */
+.optimal .bonus-length {
+  padding: 2px 6px;
+  font-size: 12pt;
+}
+
+.game-end.won {
+  background: var(--color-accent-light);
+  border-color: var(--color-accent);
+  color: var(--color-accent-dark);
+}
+
+.game-end.lost {
+  background: #f6d5d2;
+  border-color: #e0a29c;
+  color: #c0392b;
+}
+
+/* Countdown: the look of the status card, red at the end, red card when time is up */
+.panel-top .timer {
+  width: auto; /* not the fixed width of the status card */
+  font-size: 14pt;
+}
+
+.timer .status-value.ending {
+  color: #c0392b;
+}
+
+.timer.out {
+  background: #f6d5d2;
+  border-color: #e0a29c;
+}
+
+/* Status card like in the Flags & Capitals game, top right */
+.status-card {
+  width: 190px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius);
+  font-size: 13pt;
+}
+
+.level-label {
+  margin-bottom: 5px;
+  font-size: 14pt;
+}
+
+.status-line + .status-line {
+  margin-top: 8px;
+}
+
+.status-value {
+  color: var(--color-active);
+  font-weight: bold;
+}
+
+.status-label::after {
+  content: ": ";
+}
+
+.lives {
+  color: #d04a3a;
+  font-size: 16pt;
+  letter-spacing: 2px;
+}
+
+.task {
+  font-family: var(--font-heading);
+  font-size: 16pt;
+  font-weight: bold;
+  color: var(--color-accent-dark);
+}
+
+/* Start and target names, on the same colors as on the map */
+.task .start,
+.task .target {
+  padding: 1px 8px;
+  border-radius: var(--radius);
+  color: var(--color-text);
+}
+
+.task .start {
+  background: var(--map-start);
+  color: white;
+}
+
+.task .target {
+  background: var(--map-target);
+}
+
+.guess-form {
+  display: flex;
+  gap: 8px;
+}
+
+/* Input with the suggestion list below it */
+.guess-box {
+  position: relative;
+  flex: 1;
+  display: flex;
+}
+
+.guess-form input {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 12pt;
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius);
+}
+
+.suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  background: var(--color-bg);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.suggestions li {
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.suggestions li:hover,
+.suggestions li.selected {
+  background: var(--color-accent-light);
+}
+
+/* Steady info: how many countries the shortest way has */
+.optimal {
+  font-size: 12pt;
+}
+
+/* Points still possible in the round; after it, the round result (same color) */
+.pool {
+  font-size: 13pt;
+  font-weight: bold;
+}
+
+.pool-value {
+  display: inline-block; /* lets it grow when blinking */
+  font-size: 18pt;
+  color: var(--color-accent-dark);
+}
+
+/* The pool just dropped: a short red blink */
+.pool-value.dropped {
+  animation: pool-drop 0.8s ease-out;
+}
+
+@keyframes pool-drop {
+  from {
+    color: #c0392b;
+    transform: scale(1.5);
+  }
+}
+
+/* After the round: points it gave, big, in the place of the pool and the input
+   (not green: green is for countries on the way) */
+.pool.won,
+.pool.lost {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 0.3em; /* the space between label and value is lost in flex */
+  font-size: 24pt;
+}
+
+.pool.won,
+.pool.won .pool-value {
+  color: var(--color-accent-dark);
+}
+
+.pool.lost,
+.pool.lost .pool-value {
+  color: #c0392b;
+}
+
+.pool.won .pool-value,
+.pool.lost .pool-value {
+  font-size: inherit;
+}
+
+
+
+.btn {
+  background: var(--color-accent);
+  color: white;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-size: 11pt;
+  cursor: pointer;
+}
+
+.btn:hover:enabled {
+  background: var(--color-accent-dark);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn.selected,
+.btn.selected:hover {
+  background: var(--color-active);
+}
+
+/* ---------- Start screen ---------- */
+/* As wide as the picture (1187px) plus the card's padding and border */
+.start {
+  position: relative; /* anchor for the language switcher */
+  width: min(1237px, calc(var(--viewport-width, 100vw) - 32px));
+}
+
+/* Top-right corner, level with the title */
+.lang-switcher {
+  position: absolute;
+  top: 25px;
+  right: 24px;
+  display: flex;
+  gap: 4px;
+}
+
+.btn-lang {
+  padding: 4px 10px;
+  font-size: 10pt;
+}
+
+/* Picture under the title, full width of the card content */
+.start-image {
+  display: block;
+  align-self: stretch;
+  width: 100%;
+  height: auto;
+  margin: 6px 0 32px;
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius);
+}
+
+.start-row {
+  align-self: stretch;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 30px;
+  margin: 10px 0 20px;
+}
+
+/* Left column: game type tabs over the rules */
+.start-left {
+  flex: 1;
+  max-width: 700px;
+}
+
+.mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* Two classes: wins over .btn further down; letters as big as on the mode switches */
+.mode-tabs .btn-choice {
+  flex: 1;
+  text-align: center;
+  font-size: 14pt;
+}
+
+.rules-card {
+  padding: 12px 16px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius);
+  font-size: 12pt;
+  line-height: 1.4;
+}
+
+/* All language and game type versions in the same grid cell (stacked): the hidden ones take up
+   space, so the card fits the longest version; in a shorter one the spare space is spread
+   evenly between the paragraphs (like in the Flags & Capitals game) */
+.rules-card {
+  display: grid;
+}
+
+.rules-layer {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+}
+
+/* Routes rules are shorter than Neighbors: a bit bigger letters */
+.rules-layer[data-mode="paths"] {
+  font-size: 13pt;
+}
+
+.hidden-layer {
+  visibility: hidden;
+}
+
+.rules-card p {
+  margin: 0 0 10px;
+}
+
+/* Words of the chosen game mode switch states (like in the Flags & Capitals game);
+   only a background, so the text does not get wider and the lines stay */
+.rules-card span.highlight {
+  background: #d4e4f1;
+}
+
+.rules-head {
+  font-family: var(--font-heading);
+  font-weight: bold;
+  font-size: 13pt;
+}
+
+/* Right column like in the Flags & Capitals game: centered label, switches, Play */
+.start-choices {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 16px; /* a bit lower than the rules */
+}
+
+.choice-label {
+  margin: 10px 0 20px;
+  font-family: var(--font-heading);
+  font-weight: bold;
+  font-size: 18pt;
+}
+
+.choices {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.btn-choice {
+  padding: 8px 14px;
+  font-size: 12pt;
+  text-align: left;
+}
+
+.choice-name,
+.choice-desc {
+  display: block;
+}
+
+.choice-desc {
+  margin-top: 2px;
+  font-size: 10pt;
+  opacity: 0.85;
+}
+
+/* Two-state switches of the game mode: one button, two halves with a slightly slanted
+   split; the chosen half dark */
+.toggles {
+  width: 310px;
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+/* Colors like the game type buttons above the rules */
+.toggle {
+  --on: var(--color-active);
+  --off: var(--color-accent);
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 0;
+  background: linear-gradient(100deg, var(--on) 0 50%, var(--off) 50% 100%);
+}
+
+.toggle.right {
+  background: linear-gradient(100deg, var(--off) 0 50%, var(--on) 50% 100%);
+}
+
+.toggle:hover:enabled {
+  background: linear-gradient(100deg, var(--on) 0 50%, var(--off) 50% 100%);
+  filter: brightness(1.08);
+}
+
+.toggle.right:hover:enabled {
+  background: linear-gradient(100deg, var(--off) 0 50%, var(--on) 50% 100%);
+}
+
+.toggle span {
+  padding: 13px 8px;
+  font-size: 14pt;
+  text-align: center;
+  color: white;
+}
+
+/* Play: big, like in the Flags & Capitals game */
+.btn-play {
+  margin: 20px;
+  min-width: 185px;
+  padding: 30px 45px;
+  font-size: 20pt;
+}
+
+/* Small note under the input (not a move) */
+.message {
+  flex: 1;
+  padding-top: 4px;
+  font-size: 10pt;
+  font-style: italic;
+  color: #555;
+}
+
+/* After the round: level up, life lost, end of the game */
+.message.event {
+  font-size: 15pt;
+  font-style: normal;
+  font-weight: bold;
+  color: var(--color-active);
+}
+
+/* History of the round, newest on top and bold; takes the free height, scrolls */
+.log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding-left: 28px;
+  font-size: 11pt;
+  line-height: 1.4;
+}
+
+.log li + li {
+  margin-top: 6px;
+}
+
+/* Country names in their map colors */
+.log .on-way,
+.log .off-way,
+.log .unneeded {
+  padding: 1px 8px;
+  border-radius: var(--radius);
+}
+
+.log .on-way {
+  background: var(--map-on-way);
+}
+
+.log .off-way {
+  background: var(--map-off-way);
+}
+
+.log .unneeded {
+  background: repeating-linear-gradient(45deg, var(--map-on-way) 0 4px, var(--map-off-way) 4px 8px);
+}
+
+/* Extra info after a name (only when the color does not say it) */
+.log-note {
+  margin-left: 6px;
+  font-weight: normal;
+  font-style: italic;
+  color: #555;
+}
+
+.log li:first-child {
+  font-weight: bold;
+}
+
+.btn-show-ways {
+  align-self: flex-start;
+}
+
+.ways-count {
+  font-size: 12pt;
+  color: var(--color-accent-dark);
+}
+
+/* Secondary look: white with accent frame and text (like End game in Flags & Capitals) */
+.btn-return {
+  min-width: 155px;
+  background: var(--color-bg);
+  color: var(--color-accent-dark);
+  border-color: var(--color-accent);
+  font-size: 12pt;
+}
+
+.btn-return:hover:enabled {
+  background: var(--color-accent-light);
+}
+

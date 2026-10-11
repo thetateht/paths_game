@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Granice</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Texts come from js/texts.js (data-text, data-placeholder) -->
+  <main id="app">
+    <div id="start" class="card start">
+      <div id="lang-switcher" class="lang-switcher"></div>
+      <h1 class="title" data-text="title"></h1>
+      <img class="start-image" src="data/img/mapka4.png" alt="">
+      <div class="start-row">
+        <div class="start-left">
+          <!-- Game type tabs: they switch the rules below -->
+          <div id="mode-choices" class="mode-tabs"></div>
+          <!-- Rules of both game types in all languages stacked (see startScreen.js), so
+               the card keeps the height of the longest version when switching -->
+          <div id="rules-card" class="rules-card"></div>
+          <template id="rules-template">
+            <div data-mode="paths">
+              <p class="rules-head" data-rules="rules_head"></p>
+              <p class="rules-text" data-rules="rules_intro"></p>
+              <p class="rules-text" data-rules="rules_scoring_intro"></p>
+              <p class="rules-text" data-rules="rules_end"></p>
+              <p class="rules-text" data-rules="rules_timed"></p>
+            </div>
+            <div data-mode="neighbors">
+              <p class="rules-head" data-rules="rules_neighbors_head"></p>
+              <p class="rules-text" data-rules="rules_neighbors_intro"></p>
+              <p class="rules-text" data-rules="rules_neighbors_scoring"></p>
+              <p class="rules-text" data-rules="rules_neighbors_end"></p>
+              <p class="rules-text" data-rules="rules_neighbors_timed"></p>
+            </div>
+          </template>
+        </div>
+        <div class="start-choices">
+          <p class="choice-label" data-text="label_toggles"></p>
+          <!-- Two-state switches of the game mode -->
+          <div id="toggles" class="toggles"></div>
+          <button id="play" class="btn btn-play" type="button" data-text="play"></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="game" class="card game" hidden>
+      <div class="map-column">
+        <!-- Game name and game type, set in main.js -->
+        <h1 id="game-title" class="title"></h1>
+        <div id="map-area"></div>
+      </div>
+      <aside class="side-panel">
+        <div class="panel-top">
+          <!-- Timed mode: countdown, same look as the status card -->
+          <p id="timer" class="status-card timer" hidden><span class="status-label"
+              data-text="time_left"></span><span id="time" class="status-value"></span></p>
+          <!-- End of the whole game (win or no lives); stays when playing on after a win -->
+          <div id="game-end" class="game-end" hidden>
+            <p id="game-end-text" class="game-end-text"></p>
+          </div>
+          <!-- Status card like in the Flags & Capitals game -->
+          <div class="status-card">
+            <p class="level-label"><span data-text="status_level"></span>
+              <span id="level" class="status-value"></span></p>
+            <p class="status-line"><span class="status-label" data-text="status_score"></span><span
+                id="score" class="status-value"></span></p>
+            <p id="lives" class="status-line lives"></p>
+          </div>
+        </div>
+        <p id="task" class="task"></p>
+        <p id="optimal" class="optimal"></p>
+        <p id="pool" class="pool"></p>
+        <!-- After a round (Routes): the other shortest ways, when there are some -->
+        <button id="show-ways" class="btn btn-return btn-show-ways" type="button" hidden></button>
+        <p id="ways-count" class="ways-count" hidden></p>
+        <!-- How countries are given; later also a list of countries to click -->
+        <div id="input-area" class="input-area">
+          <form id="guess-form" class="guess-form">
+            <div class="guess-box">
+              <input id="guess-input" type="text" autocomplete="off" data-placeholder="input_placeholder">
+              <ul id="suggestions" class="suggestions" hidden></ul>
+            </div>
+            <button class="btn btn-check" type="submit" data-text="check"></button>
+          </form>
+          <!-- Buttons mode: countries to click instead of typing -->
+          <div id="country-buttons" class="country-buttons" hidden></div>
+        </div>
+        <!-- Notes that are not moves (unknown name, life lost...) and Give up / Next under Check -->
+        <div class="round-row">
+          <p id="message" class="message"></p>
+          <div class="round-actions">
+            <button id="give-up" class="btn btn-return" type="button" data-text="give_up"></button>
+            <button id="next-round" class="btn btn-next" type="button" data-text="next_round" hidden></button>
+            <!-- After a win, in the place of Next, to the end of the game -->
+            <button id="free-play" class="btn btn-next" type="button" data-text="free_play" hidden></button>
+          </div>
+        </div>
+        <ol id="log" class="log"></ol>
+        <button id="end-game" class="btn btn-return" type="button" data-text="end_game"></button>
+      </aside>
+    </div>
+  </main>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
