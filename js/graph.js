@@ -17,29 +17,16 @@ export function distancesFrom(borders, from, allowed = null) {
   return dist;
 }
 
-// Countries larger than this make a way less likely (see candidatePairs)
-const BIG_AREA = 3_000_000; // km²
-
-// All [start, target, weight] with exactly `between` countries between them on the
-// shortest path. Weight = (neighbors of start × neighbors of target) / (1 + excess / BIG_AREA),
-// where excess = smallest total area above BIG_AREA of countries (ends included) on a
-// shortest path: well connected countries come more often, ways through huge ones
-// (Russia, China) less often; other countries' size does not matter.
-// avoid = {borders: [[a, b], ...], countries: Set}: pairs with a shortest path crossing
-// such a border or going through such a country (ends included) are left out.
-export function candidatePairs(borders, between, areas, avoid = {}) {
-  const excess = (code) => Math.max(0, areas[code] - BIG_AREA);
-  const avoidedBorders = new Set(
-    (avoid.borders ?? []).flatMap(([a, b]) => [`${a}-${b}`, `${b}-${a}`])
-  );
-  const avoidedCountries = avoid.countries ?? new Set();
+// All [start, target] with exactly `between` countries between them on the shortest path.
+// avoid (Set): pairs with a shortest path going through such a country (ends included)
+// are left out.
+export function candidatePairs(borders, between, avoid = new Set()) {
   const pairs = [];
   for (const start of Object.keys(borders)) {
-    if (avoidedCountries.has(start)) continue;
-    // Breadth-first layers; minArea = smallest excess of a shortest path from start
+    if (avoid.has(start)) continue;
+    // Breadth-first layers
     const dist = { [start]: 0 };
-    const minArea = { [start]: excess(start) };
-    const viaAvoided = {}; // some shortest path from start crosses an avoided border/country
+    const viaAvoided = {}; // some shortest path from start goes through an avoided country
     let layer = [start];
     for (let d = 1; d <= between + 1 && layer.length; d++) {
       const next = [];
@@ -49,44 +36,86 @@ export function candidatePairs(borders, between, areas, avoid = {}) {
             dist[n] = d;
             next.push(n);
           }
-          if (dist[n] === d) {
-            minArea[n] = Math.min(minArea[n] ?? Infinity, minArea[code] + excess(n));
-            if (viaAvoided[code] || avoidedBorders.has(`${code}-${n}`) || avoidedCountries.has(n)) {
-              viaAvoided[n] = true;
-            }
-          }
+          if (dist[n] === d && (viaAvoided[code] || avoid.has(n))) viaAvoided[n] = true;
         }
       }
       layer = next;
     }
-    for (const target of layer) {
-      if (viaAvoided[target]) continue;
-      const neighbors = borders[start].length * borders[target].length;
-      const weight = neighbors / (1 + minArea[target] / BIG_AREA);
-      pairs.push([start, target, weight]);
-    }
+    for (const target of layer) if (!viaAvoided[target]) pairs.push([start, target]);
   }
   return pairs;
 }
 
-// Random [start, target] with min to max countries between them (see candidatePairs).
-// If avoiding countries leaves no pair, they are not avoided.
-export function randomPair(borders, [min, max], areas, avoid = {}, random = Math.random) {
+// Weight of a pair for randomPair: (start, target) => number.
+// neighbors: × neighbors of start × neighbors of target (well connected countries more often);
+// factors = {code: number} (missing = 1): × factor of start × factor of target.
+export function pairWeight(borders, { neighbors = false, factors = {} } = {}) {
+  const factor = (code) => factors[code] ?? 1;
+  const links = (code) => (neighbors ? borders[code].length : 1);
+  return (start, target) => links(start) * links(target) * factor(start) * factor(target);
+}
+
+// Weight of the pairs with `between` countries between them (see candidatePairs): the base
+// weight (start, target) => number, lowered for ways through busy countries. Busyness of a
+// country = its share of the base weight of these pairs, as a country between on a shortest
+// way. Busyness of a pair = that of the busiest country on its least busy shortest way;
+// above `threshold` the weight is × threshold / busyness. Returns (start, target) => number.
+export function busyWeight(borders, between, base, threshold) {
+  const codes = Object.keys(borders);
+  const dist = Object.fromEntries(codes.map((code) => [code, distancesFrom(borders, code)]));
+  const pairs = candidatePairs(borders, between).map(([start, target]) => {
+    // Countries between on a shortest way, nearest to start first
+    const way = codes
+      .filter((c) => c !== start && c !== target && dist[start][c] + dist[c][target] === between + 1)
+      .sort((a, b) => dist[start][a] - dist[start][b]);
+    return { start, target, way, weight: base(start, target) };
+  });
+  const total = pairs.reduce((sum, p) => sum + p.weight, 0);
+  const busy = {};
+  for (const p of pairs) for (const c of p.way) busy[c] = (busy[c] ?? 0) + p.weight / total;
+
+  const weights = {};
+  for (const { start, target, way, weight } of pairs) {
+    // least[c] = busyness of the least busy way from start to c (its busiest country)
+    const least = { [start]: 0 };
+    const fromPrevious = (code, d) =>
+      Math.min(...borders[code].filter((n) => n in least && dist[start][n] === d).map((n) => least[n]));
+    for (const c of way) least[c] = Math.max(busy[c], fromPrevious(c, dist[start][c] - 1));
+    const busyness = fromPrevious(target, between);
+    weights[`${start}-${target}`] = busyness > threshold ? (weight * threshold) / busyness : weight;
+  }
+  return (start, target) => weights[`${start}-${target}`];
+}
+
+// Random [start, target] with min to max countries between them, drawn by weight
+// (see candidatePairs, pairWeight, busyWeight).
+// recent = [{countries: Set, factor}]: pairs with a shortest path through such countries
+// (ends included) get weight × factor; factor 0 = left out (if this leaves no pair, not).
+export function randomPair(borders, [min, max], weight = () => 1, recent = [], random = Math.random) {
   const collect = (avoid) => {
     const pairs = [];
     for (let between = min; between <= max; between++) {
-      pairs.push(...candidatePairs(borders, between, areas, avoid));
+      pairs.push(...candidatePairs(borders, between, avoid));
     }
     return pairs;
   };
-  let pairs = collect(avoid);
-  if (!pairs.length) pairs = collect({ borders: avoid.borders });
-  let r = random() * pairs.reduce((sum, p) => sum + p[2], 0);
-  for (const [start, target, weight] of pairs) {
-    r -= weight;
-    if (r < 0) return [start, target];
+  const blocked = new Set(recent.filter((r) => r.factor === 0).flatMap((r) => [...r.countries]));
+  let pairs = collect(blocked);
+  if (!pairs.length) pairs = collect(new Set());
+  const weights = pairs.map(([start, target]) => weight(start, target));
+  for (const { countries, factor } of recent) {
+    if (factor === 0) continue;
+    const clear = new Set(collect(countries).map(([start, target]) => `${start}-${target}`));
+    pairs.forEach(([start, target], i) => {
+      if (!clear.has(`${start}-${target}`)) weights[i] *= factor;
+    });
   }
-  return pairs[pairs.length - 1].slice(0, 2); // guard against rounding errors
+  let r = random() * weights.reduce((sum, w) => sum + w, 0);
+  for (let i = 0; i < pairs.length; i++) {
+    r -= weights[i];
+    if (r < 0) return pairs[i];
+  }
+  return pairs[pairs.length - 1]; // guard against rounding errors
 }
 
 // One shortest path from `from` to `to`, both included: [from, ..., to].

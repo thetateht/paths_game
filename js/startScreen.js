@@ -114,23 +114,27 @@ function choiceButton(textKey) {
   return button;
 }
 
-// Two-state switch: one button, the chosen half dark. Clicking switches to the other state.
-function toggle(field, [left, right], choice, onChange) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "btn toggle";
-  const half = (state) => {
-    const span = document.createElement("span");
-    span.textContent = t(`toggle_${state}`);
-    return span;
-  };
-  button.append(half(left), half(right));
-  const show = () => button.classList.toggle("right", choice[field] === right);
-  button.addEventListener("click", () => {
-    choice[field] = choice[field] === left ? right : left;
-    show();
-    onChange();
+// Two-state switch: two halves with a slanted split, the chosen one dark.
+// Like the game type buttons: clicking the other half chooses its state.
+function toggle(field, states, choice, onChange) {
+  const box = document.createElement("div");
+  box.className = "toggle";
+  const halves = states.map((state) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn";
+    button.textContent = t(`toggle_${state}`);
+    button.addEventListener("click", () => {
+      choice[field] = state;
+      show();
+      onChange();
+    });
+    return button;
   });
+  const show = () => {
+    halves.forEach((b, i) => b.classList.toggle("selected", choice[field] === states[i]));
+  };
+  box.append(...halves);
   show();
-  return button;
+  return box;
 }

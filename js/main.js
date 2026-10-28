@@ -3,6 +3,8 @@ import { loadData } from "./data.js";
 import { loadMapFor, createMap } from "./mapView.js";
 import {
   randomPair,
+  pairWeight,
+  busyWeight,
   bestShortestPath,
   extremeShortestPaths,
   buttonCountries,
@@ -20,7 +22,10 @@ import {
   LEVELS,
   BUTTONS,
   BUTTON_COLUMNS,
-  AVOID_BORDERS,
+  PAIR_WEIGHTS,
+  CONTINENT_FACTORS,
+  BUSY_THRESHOLDS,
+  RECENT_WAY_FACTORS,
   TIME_LIMIT,
   NEIGHBOR_LEVELS,
   NEIGHBOR_BUTTONS,
@@ -44,6 +49,27 @@ applyTexts(); // page texts before the data loads
 
 const { countries, borders: routeBorders, neighbors: neighborBorders, areas, centroids } =
   await loadData();
+// Routes: pair weight factor of each country (see pairWeight)
+const continentFactors = {};
+for (const [code, country] of Object.entries(countries)) {
+  if (country.continent) continentFactors[code] = CONTINENT_FACTORS[country.continent];
+}
+// Routes: pair weights per number of countries between, made when first needed
+const routeWeights = {};
+function routeWeight(between) {
+  if (!routeWeights[between]) {
+    const base = pairWeight(routeBorders, {
+      neighbors: PAIR_WEIGHTS.neighbors,
+      factors: PAIR_WEIGHTS.continents ? continentFactors : {},
+    });
+    const level = LEVELS.indexOf(between);
+    const threshold = BUSY_THRESHOLDS[level >= 0 ? level : BUSY_THRESHOLDS.length - 1];
+    routeWeights[between] = PAIR_WEIGHTS.busy
+      ? busyWeight(routeBorders, between, base, threshold)
+      : base;
+  }
+  return routeWeights[between];
+}
 let names; // {code: name} in the current language
 let nameIndex; // typed names in the current language
 function useLang() {
@@ -63,7 +89,7 @@ let borders; // their neighbors (Routes or Neighbors data)
 let session; // series of rounds: score, lives, level
 let game; // current round
 let neighborsMode = false; // the game type of this game: Neighbors (else Routes)
-let lastWay = new Set(); // Routes: start, target and shortest ways of the last round
+let recentWays = []; // Routes: start, target and shortest ways of the last rounds, last first
 let recent = []; // Neighbors: the countries of the last rounds
 let timer = null; // countdown of the round (timed mode)
 let map;
@@ -82,7 +108,7 @@ function newGame() {
   session = neighborsMode
     ? createSession(NEIGHBOR_LEVELS.length, NEIGHBOR_WIN_SCORE)
     : createSession(LEVELS.length, WIN_SCORE);
-  lastWay = new Set();
+  recentWays = [];
   recent = [];
   bonusLength = BONUS_LENGTHS[0];
   el("game-end").hidden = true;
@@ -102,11 +128,12 @@ async function newRound() {
   } else {
     // After a win (playing on): the chosen length
     const between = session.free ? bonusLength : LEVELS[session.level];
-    const avoid = { borders: AVOID_BORDERS, countries: lastWay };
-    [start, target] = randomPair(borders, [between, between], areas, avoid);
+    const recent = recentWays.map((countries, i) => ({ countries, factor: RECENT_WAY_FACTORS[i] }));
+    [start, target] = randomPair(borders, [between, between], routeWeight(between), recent);
     game = createGame(borders, start, target);
-    // Countries of this round's shortest ways: not again in the next round
-    lastWay = new Set([start, target, ...Object.keys(borders).filter(game.onWay)]);
+    // Countries of this round's shortest ways: less likely in the next rounds
+    const way = new Set([start, target, ...Object.keys(borders).filter(game.onWay)]);
+    recentWays = [way, ...recentWays].slice(0, RECENT_WAY_FACTORS.length);
   }
   found = [];
 
@@ -207,7 +234,9 @@ function showInput() {
   }
   codes.sort((a, b) => names[a].localeCompare(names[b], currentLang()));
   const list = el("country-buttons");
-  list.style.gridTemplateColumns = `repeat(${BUTTON_COLUMNS}, 1fr)`;
+  const columns = neighborsMode ? 2 : BUTTON_COLUMNS[session.level];
+  list.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+  list.classList.toggle("wide", columns === 3);
   list.replaceChildren(
     ...codes.map((code) => {
       const button = document.createElement("button");
@@ -250,6 +279,7 @@ function label(text, className) {
 
 // Status card (level, score, lives) and the round's pool
 function showStatus() {
+  el("status").hidden = session.free; // playing on after a win: no points, no lives
   el("level").textContent = session.level + 1;
   el("score").textContent = session.score;
   el("lives").textContent = "♥".repeat(session.lives) + "♡".repeat(LIVES - session.lives);

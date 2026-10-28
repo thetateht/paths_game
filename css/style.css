@@ -278,6 +278,11 @@ body {
   gap: 10px;
 }
 
+/* 3 columns: the whole width */
+.country-buttons.wide {
+  width: 100%;
+}
+
 /* Two classes: wins over the general .btn rule further down */
 .country-buttons .country-button {
   padding: 12px 4px;
@@ -329,6 +334,7 @@ body {
 
 .side-panel #end-game {
   align-self: flex-end;
+  margin-top: auto; /* always at the bottom, also when the history is hidden */
 }
 
 /* Timer on the left (timed mode), status card on the right */
@@ -730,8 +736,8 @@ body {
   opacity: 0.85;
 }
 
-/* Two-state switches of the game mode: one button, two halves with a slightly slanted
-   split; the chosen half dark */
+/* Two-state switches of the game mode: two halves with a slightly slanted split;
+   the chosen half dark */
 .toggles {
   width: 310px;
   display: grid;
@@ -739,35 +745,40 @@ body {
   margin-bottom: 20px;
 }
 
-/* Colors like the game type buttons above the rules */
+/* Colors like the game type buttons above the rules; each half reaches --slant past
+   the middle and is clipped along the split, so only its own color reacts */
 .toggle {
-  --on: var(--color-active);
-  --off: var(--color-accent);
+  --slant: 4px;
   width: 100%;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  padding: 0;
-  background: linear-gradient(100deg, var(--on) 0 50%, var(--off) 50% 100%);
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 
-.toggle.right {
-  background: linear-gradient(100deg, var(--off) 0 50%, var(--on) 50% 100%);
-}
-
-.toggle:hover:enabled {
-  background: linear-gradient(100deg, var(--on) 0 50%, var(--off) 50% 100%);
-  filter: brightness(1.08);
-}
-
-.toggle.right:hover:enabled {
-  background: linear-gradient(100deg, var(--off) 0 50%, var(--on) 50% 100%);
-}
-
-.toggle span {
+.toggle .btn {
+  border: none;
+  border-radius: 0;
   padding: 13px 8px;
   font-size: 14pt;
   text-align: center;
-  color: white;
+}
+
+.toggle .btn:first-child {
+  margin-right: calc(-1 * var(--slant));
+  padding-right: calc(8px + var(--slant));
+  clip-path: polygon(0 0, 100% 0, calc(100% - 2 * var(--slant)) 100%, 0 100%);
+}
+
+.toggle .btn:last-child {
+  margin-left: calc(-1 * var(--slant));
+  padding-left: calc(8px + var(--slant));
+  clip-path: polygon(calc(2 * var(--slant)) 0, 100% 0, 100% 100%, 0 100%);
+}
+
+.toggle .btn.selected {
+  cursor: default;
 }
 
 /* Play: big, like in the Flags & Capitals game */
